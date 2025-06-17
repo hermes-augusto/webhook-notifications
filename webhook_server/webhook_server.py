@@ -8,6 +8,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 ENV = os.environ.get("WEBHOOK_ENV", "prod")
+TOKEN = os.environ.get('WEBHOOK_TOKEN', 'token_teste')
 CSV_FILE = f'data/{ENV}/raw/notificacoes.csv'
 FORMATTED_CSV = f'data/{ENV}/formated/notificacoes_formatadas.csv'
 
@@ -28,6 +29,10 @@ def create_app():
 
     @app.route('/webhook', methods=['POST'])
     def webhook():
+        logging.info(f"Requisição recebida de {request.remote_addr}")
+        auth = request.headers.get('Authorization')
+        if not auth or auth != f'Bearer {TOKEN}':
+            return jsonify({'status': 'error', 'message': 'Não autorizado'}), 401
         try:
             data = request.get_json()
             app_name = data['app']
