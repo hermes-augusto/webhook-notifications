@@ -26,6 +26,10 @@ if not utils.check_file_exists(FORMATTED_CSV):
 
 def create_app():
     app = Flask(__name__)
+    
+    @app.route('/ping', methods=['GET'])
+    def ping():
+        return jsonify({"status": "success", "message": "Pong"}), 200
 
     @app.route('/webhook', methods=['POST'])
     def webhook():
