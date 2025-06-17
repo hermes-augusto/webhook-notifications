@@ -2,101 +2,66 @@ from flask import Flask, request, jsonify
 import csv
 import os
 from datetime import datetime
-from typing import Optional, Dict
-import re
+import utils
+import logging
 
-app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
 
 ENV = os.environ.get("WEBHOOK_ENV", "prod")
-
 CSV_FILE = f'data/{ENV}/raw/notificacoes.csv'
 FORMATTED_CSV = f'data/{ENV}/formated/notificacoes_formatadas.csv'
 
 
-def check_file_exists(file_path: str) -> bool:
-    if not os.path.isdir(os.path.dirname(file_path)):
-        os.makedirs(os.path.dirname(file_path))
-    return os.path.isfile(file_path)
 
-def append_csv(file_path: str, data: dict) -> None:
-    with open(file_path, mode='a', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerow(data.values())
-
-def parse_notification(titulo: str, texto: str):
-    if titulo == "Você recebeu um Pix":
-        padrao = r'Pix recebido no valor de R\$ ([\d,.]+), (de .+?), em (\d{2}/\d{2}/\d{4})\.'
-        m = re.search(padrao, texto)
-        if m:
-            valor = float(m.group(1).replace('.', '').replace(',', '.'))
-            return {
-                "data": m.group(3),
-                "valor": valor,
-                "descricao": m.group(2),
-                "operacao": "PIX",
-            }
-    elif titulo == "Compra no crédito aprovada":
-        padrao = r'Sua compra no cartão final \d+ no valor de R\$ ([\d,.]+), dia (\d{2}/\d{2}/\d{4}) às (\d{2}:\d{2}), em (.*), foi aprovada\.'
-        m = re.search(padrao, texto)
-        if m:
-            valor = float(m.group(1).replace('.', '').replace(',', '.'))
-            data = f"{m.group(2)} {m.group(3)}"
-            return {
-                "data": data,
-                "valor": valor,
-                "descricao": m.group(4).strip(),
-                "operacao": "CREDITO",
-                
-            }
-    elif titulo == "Débito C6 Tag":
-        padrao = r'Você usou seu tag no dia (\d{2}/\d{2}/\d{4}) as (\d{2}:\d{2}). Valor a debitar R\$ ([\d,.]+)\. (.+) \.'
-        m = re.search(padrao, texto)
-        if m:
-            valor = float(m.group(3).replace('.', '').replace(',', '.'))
-            data = f"{m.group(1)} {m.group(2)}"
-            return {
-                "data": data,
-                "valor": valor,
-                "descricao": m.group(4).strip(),
-                "operacao": "TAG"
-            }
-    return None
-
-
-if not check_file_exists(CSV_FILE):
+if not utils.check_file_exists(CSV_FILE):
     with open(CSV_FILE, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerow(['timestamp', 'app', 'titulo', 'texto'])
 
-if not check_file_exists(FORMATTED_CSV):
+if not utils.check_file_exists(FORMATTED_CSV):
     with open(FORMATTED_CSV, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerow(['data', 'valor', 'descricao', 'tipo_operacao'])
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    try:
-        data = request.get_json()
-        app_name = data['app']
-        title = data['titulo']
-        text = data['texto']
-        timestamp = datetime.now().isoformat()
-        format_msg = parse_notification(title, text)
-        append_csv(CSV_FILE, {
-            "timestamp": timestamp,
-            "app": app_name,
-            "titulo": title,
-            "texto": text
-        })
-        append_csv(FORMATTED_CSV, format_msg)
-        return jsonify({"status": "success", "message": "Dados salvos"}), 200
-    except KeyError as e:
-        return jsonify({"status": "error", "message": f"Campo obrigatório ausente: {e}"}), 400
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+def create_app():
+    app = Flask(__name__)
+
+    @app.route('/webhook', methods=['POST'])
+    def webhook():
+        try:
+            data = request.get_json()
+            app_name = data['app']
+            title = data['titulo']
+            text = data['texto']
+            timestamp = datetime.now().isoformat()
+
+            utils.append_csv(CSV_FILE, {
+                "timestamp": timestamp,
+                "app": app_name,
+                "titulo": title,
+                "texto": text
+            })
+
+            logging.info(f"Salvando RAW : {title}")
+            format_msg = utils.parse_notification(title, text)
+            if format_msg:
+                logging.info(f"Salvando Formatada: {format_msg['operacao']}")
+                utils.append_csv(FORMATTED_CSV, format_msg)
+            else:
+                logging.info("Mensagem não reconhecida")
+
+            return jsonify({"status": "success", "message": "Dados salvos"}), 200
+        except KeyError as e:
+            return jsonify({"status": "error", "message": f"Campo obrigatório ausente: {e}"}), 400
+        except Exception as e:
+            logging.exception("Erro ao processar webhook",str(e))
+            return jsonify({"status": "error", "message": str(e)}), 500
+    
+    return app
 
 def main():
-    port = int(os.environ.get('PORT', 5000 if ENV == "prod" else 5001))
+    app = create_app()
+    port = int(5000 if ENV == "prod" else 5001)
     app.run(host='0.0.0.0', port=port, debug=port==5001)
 
 if __name__ == "__main__":
