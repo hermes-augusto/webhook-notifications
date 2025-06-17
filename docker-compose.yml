@@ -1,0 +1,23 @@
+version: "3"
+services:
+  webhook-prod:
+    build: .
+    container_name: webhook-flask
+    environment:
+      - WEBHOOK_ENV=prod
+      - WEBHOOK_TOKEN=${WEBHOOK_TOKEN}
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data/prod:/app/data/prod
+
+  webhook-dev:
+    build: .
+    container_name: webhook-flask-dev
+    environment:
+      - WEBHOOK_ENV=dev
+      - WEBHOOK_TOKEN=${WEBHOOK_TOKEN}
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./data/dev:/app/data/dev
