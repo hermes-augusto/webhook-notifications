@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 import csv
 import os
 from datetime import datetime
-import utils
+from webhook_server import utils
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -26,7 +26,7 @@ if not utils.check_file_exists(FORMATTED_CSV):
 
 def create_app():
     app = Flask(__name__)
-    
+
     @app.route('/ping', methods=['GET'])
     def ping():
         return jsonify({"status": "success", "message": "Pong"}), 200
@@ -70,8 +70,8 @@ def create_app():
 
 def main():
     app = create_app()
-    port = int(5000 if ENV == "prod" else 5001)
-    app.run(host='0.0.0.0', port=port, debug=port==5001)
+    port = 5000
+    app.run(host='0.0.0.0', port=port, debug=(ENV != "prod"))
 
 if __name__ == "__main__":
     main()
