@@ -18,10 +18,10 @@ def check_file_exists(file_path: str) -> bool:
         os.makedirs(os.path.dirname(file_path))
     return os.path.isfile(file_path)
 
-def append_csv(file_path: str, data: list) -> None:
+def append_csv(file_path: str, data: dict) -> None:
     with open(file_path, mode='a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
-        writer.writerow(data)
+        writer.writerow(data.values())
 
 def parse_notification(titulo: str, texto: str):
     if titulo == "Você recebeu um Pix":
@@ -30,10 +30,10 @@ def parse_notification(titulo: str, texto: str):
         if m:
             valor = float(m.group(1).replace('.', '').replace(',', '.'))
             return {
-                "operacao": "PIX",
+                "data": m.group(3),
                 "valor": valor,
                 "descricao": m.group(2),
-                "data": m.group(3)
+                "operacao": "PIX",
             }
     elif titulo == "Compra no crédito aprovada":
         padrao = r'Sua compra no cartão final \d+ no valor de R\$ ([\d,.]+), dia (\d{2}/\d{2}/\d{4}) às (\d{2}:\d{2}), em (.*), foi aprovada\.'
@@ -42,10 +42,11 @@ def parse_notification(titulo: str, texto: str):
             valor = float(m.group(1).replace('.', '').replace(',', '.'))
             data = f"{m.group(2)} {m.group(3)}"
             return {
-                "operacao": "CREDITO",
+                "data": data,
                 "valor": valor,
                 "descricao": m.group(4).strip(),
-                "data": data
+                "operacao": "CREDITO",
+                
             }
     elif titulo == "Débito C6 Tag":
         padrao = r'Você usou seu tag no dia (\d{2}/\d{2}/\d{4}) as (\d{2}:\d{2}). Valor a debitar R\$ ([\d,.]+)\. (.+) \.'
@@ -54,10 +55,10 @@ def parse_notification(titulo: str, texto: str):
             valor = float(m.group(3).replace('.', '').replace(',', '.'))
             data = f"{m.group(1)} {m.group(2)}"
             return {
-                "operacao": "TAG",
+                "data": data,
                 "valor": valor,
                 "descricao": m.group(4).strip(),
-                "data": data
+                "operacao": "TAG"
             }
     return None
 
@@ -70,7 +71,7 @@ if not check_file_exists(CSV_FILE):
 if not check_file_exists(FORMATTED_CSV):
     with open(FORMATTED_CSV, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
-        writer.writerow(['data', 'valor', 'tipo_operacao', 'descricao'])
+        writer.writerow(['data', 'valor', 'descricao', 'tipo_operacao'])
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -81,11 +82,13 @@ def webhook():
         text = data['texto']
         timestamp = datetime.now().isoformat()
         format_msg = parse_notification(title, text)
-        print(format_msg)
-        with open(CSV_FILE, mode='a', newline='', encoding='utf-8') as file:
-            writer = csv.writer(file)
-            writer.writerow([timestamp, app_name, title, text])
-
+        append_csv(CSV_FILE, {
+            "timestamp": timestamp,
+            "app": app_name,
+            "titulo": title,
+            "texto": text
+        })
+        append_csv(FORMATTED_CSV, format_msg)
         return jsonify({"status": "success", "message": "Dados salvos"}), 200
     except KeyError as e:
         return jsonify({"status": "error", "message": f"Campo obrigatório ausente: {e}"}), 400
