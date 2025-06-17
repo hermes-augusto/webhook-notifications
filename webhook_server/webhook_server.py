@@ -2,12 +2,55 @@ from flask import Flask, request, jsonify
 import csv
 import os
 from datetime import datetime
+from typing import Optional, Dict
+import re
 
 app = Flask(__name__)
 
 ENV = os.environ.get("WEBHOOK_ENV", "prod")  
 CSV_FILE = f'data/{ENV}/raw/notificacoes.csv'
 FORMATTED_CSV = os.environ.get('FORMATTED_CSV', f'data/{ENV}/formated/notificacoes_formatadas.csv')
+
+def parse_notification(titulo: str, texto: str):
+    if titulo == "Você recebeu um Pix":
+        padrao = r'Pix recebido no valor de R\$ ([\d,.]+), (de .+?), em (\d{2}/\d{2}/\d{4})\.'
+        m = re.search(padrao, texto)
+        if m:
+            valor = float(m.group(1).replace('.', '').replace(',', '.'))
+            return {
+                "operacao": "PIX",
+                "valor": valor,
+                "descricao": m.group(2),
+                "data": m.group(3)
+            }
+    elif titulo == "Compra no crédito aprovada":
+        padrao = r'Sua compra no cartão final \d+ no valor de R\$ ([\d,.]+), dia (\d{2}/\d{2}/\d{4}) às (\d{2}:\d{2}), em (.*), foi aprovada\.'
+        m = re.search(padrao, texto)
+        if m:
+            valor = float(m.group(1).replace('.', '').replace(',', '.'))
+            data = f"{m.group(2)} {m.group(3)}"
+            return {
+                "operacao": "CREDITO",
+                "valor": valor,
+                "descricao": m.group(4).strip(),
+                "data": data
+            }
+    elif titulo == "Débito C6 Tag":
+        padrao = r'Você usou seu tag no dia (\d{2}/\d{2}/\d{4}) as (\d{2}:\d{2}). Valor a debitar R\$ ([\d,.]+)\. (.+) \.'
+        m = re.search(padrao, texto)
+        if m:
+            valor = float(m.group(3).replace('.', '').replace(',', '.'))
+            data = f"{m.group(1)} {m.group(2)}"
+            return {
+                "operacao": "TAG",
+                "valor": valor,
+                "descricao": m.group(4).strip(),
+                "data": data
+            }
+    return None
+
+if not os.path.isdir(os.path.dirname(CSV_FILE)):
+    os.makedirs(os.path.dirname(CSV_FILE))
 
 if not os.path.isfile(CSV_FILE):
     with open(CSV_FILE, mode='w', newline='', encoding='utf-8') as file:
@@ -18,16 +61,19 @@ if not os.path.isfile(CSV_FILE):
 def webhook():
     try:
         data = request.get_json()
-        app_name = data.get('app', 'N/A')
-        title = data.get('titulo', 'N/A')
-        text = data.get('texto', 'N/A')
+        app_name = data['app']
+        title = data['titulo']
+        text = data['texto']
         timestamp = datetime.now().isoformat()
-
+        format_msg = parse_notification(title, text)
+        print(format_msg)
         with open(CSV_FILE, mode='a', newline='', encoding='utf-8') as file:
             writer = csv.writer(file)
             writer.writerow([timestamp, app_name, title, text])
 
         return jsonify({"status": "success", "message": "Dados salvos"}), 200
+    except KeyError as e:
+        return jsonify({"status": "error", "message": f"Campo obrigatório ausente: {e}"}), 400
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
