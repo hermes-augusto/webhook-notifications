@@ -7,9 +7,21 @@ import re
 
 app = Flask(__name__)
 
-ENV = os.environ.get("WEBHOOK_ENV", "prod")  
+ENV = os.environ.get("WEBHOOK_ENV", "prod")
+
 CSV_FILE = f'data/{ENV}/raw/notificacoes.csv'
-FORMATTED_CSV = os.environ.get('FORMATTED_CSV', f'data/{ENV}/formated/notificacoes_formatadas.csv')
+FORMATTED_CSV = f'data/{ENV}/formated/notificacoes_formatadas.csv'
+
+
+def check_file_exists(file_path: str) -> bool:
+    if not os.path.isdir(os.path.dirname(file_path)):
+        os.makedirs(os.path.dirname(file_path))
+    return os.path.isfile(file_path)
+
+def append_csv(file_path: str, data: list) -> None:
+    with open(file_path, mode='a', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow(data)
 
 def parse_notification(titulo: str, texto: str):
     if titulo == "Você recebeu um Pix":
@@ -49,13 +61,16 @@ def parse_notification(titulo: str, texto: str):
             }
     return None
 
-if not os.path.isdir(os.path.dirname(CSV_FILE)):
-    os.makedirs(os.path.dirname(CSV_FILE))
 
-if not os.path.isfile(CSV_FILE):
+if not check_file_exists(CSV_FILE):
     with open(CSV_FILE, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerow(['timestamp', 'app', 'titulo', 'texto'])
+
+if not check_file_exists(FORMATTED_CSV):
+    with open(FORMATTED_CSV, mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow(['data', 'valor', 'tipo_operacao', 'descricao'])
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
