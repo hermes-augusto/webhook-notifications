@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "webhook-notifications"
+version = "0.1.0"
+description = ""
+authors = ["hermes-augusto <hermes.barboza@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.9,<4.0"
+flask = "^3.1.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+start-webhook = "webhook_server:main"
