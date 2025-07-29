@@ -10,7 +10,7 @@ services:
       - "5000:5000"
     volumes:
       - ./data/prod:/app/data/prod
-
+    restart: unless-stopped
   webhook-dev:
     build: .
     container_name: webhook-flask-dev
