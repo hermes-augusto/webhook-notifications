@@ -63,7 +63,7 @@ def create_app():
         except KeyError as e:
             return jsonify({"status": "error", "message": f"Campo obrigatório ausente: {e}"}), 400
         except Exception as e:
-            logging.exception("Erro ao processar webhook",str(e))
+            logging.exception("Erro ao processar webhook: %s", e)
             return jsonify({"status": "error", "message": str(e)}), 500
     
     return app
