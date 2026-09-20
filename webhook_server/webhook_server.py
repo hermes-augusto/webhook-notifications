@@ -14,18 +14,16 @@ FORMATTED_CSV = f'data/{ENV}/formated/notificacoes_formatadas.csv'
 
 
 
-if not utils.check_file_exists(CSV_FILE):
-    with open(CSV_FILE, mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerow(['timestamp', 'app', 'titulo', 'texto'])
-
-if not utils.check_file_exists(FORMATTED_CSV):
-    with open(FORMATTED_CSV, mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerow(['data', 'valor', 'descricao', 'tipo_operacao'])
-
 def create_app():
     app = Flask(__name__)
+
+    for path, header in (
+        (CSV_FILE, ['timestamp', 'app', 'titulo', 'texto']),
+        (FORMATTED_CSV, ['data', 'valor', 'descricao', 'tipo_operacao']),
+    ):
+        if not utils.check_file_exists(path):
+            with open(path, mode='w', newline='', encoding='utf-8') as file:
+                csv.writer(file).writerow(header)
 
     @app.route('/ping', methods=['GET'])
     def ping():
