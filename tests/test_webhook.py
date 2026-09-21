@@ -90,12 +90,34 @@ def test_webhook_campo_ausente_retorna_400_sem_gravar(client):
 
 
 def test_webhook_duas_notificacoes_acumulam_linhas(client):
-    for _ in range(2):
+    for titulo, texto in (("Você recebeu um Pix", TEXTO_PIX), ("Compra no crédito aprovada", TEXTO_CREDITO)):
         resposta = client.post(
             "/webhook",
             headers=auth(),
-            json={"app": "C6 Bank", "titulo": "Você recebeu um Pix", "texto": TEXTO_PIX},
+            json={"app": "C6 Bank", "titulo": titulo, "texto": texto},
         )
         assert resposta.status_code == 200
     assert len(ler_linhas(ws.CSV_FILE)) == 3
     assert len(ler_linhas(ws.FORMATTED_CSV)) == 3
+
+
+def test_webhook_notificacao_duplicada_nao_grava_novamente(client):
+    payload = {"app": "C6 Bank", "titulo": "Você recebeu um Pix", "texto": TEXTO_PIX}
+    r1 = client.post("/webhook", headers=auth(), json=payload)
+    r2 = client.post("/webhook", headers=auth(), json=payload)
+    assert r1.status_code == 200
+    assert r2.status_code == 200
+    assert "duplicada" in r2.get_json()["message"]
+    assert len(ler_linhas(ws.CSV_FILE)) == 2
+    assert len(ler_linhas(ws.FORMATTED_CSV)) == 2
+
+
+def test_webhook_notificacoes_diferentes_gravam_normalmente(client):
+    for texto in (TEXTO_PIX, TEXTO_CREDITO):
+        resposta = client.post(
+            "/webhook",
+            headers=auth(),
+            json={"app": "C6 Bank", "titulo": "Qualquer", "texto": texto},
+        )
+        assert resposta.status_code == 200
+    assert len(ler_linhas(ws.CSV_FILE)) == 3

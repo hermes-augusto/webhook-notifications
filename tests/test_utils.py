@@ -127,3 +127,28 @@ def test_append_csv_grava_linha(tmp_path):
     alvo = tmp_path / "arquivo.csv"
     utils.append_csv(str(alvo), {"a": 1, "b": "dois"})
     assert alvo.read_text(encoding="utf-8").strip() == "1,dois"
+
+
+from datetime import datetime, timedelta
+
+from webhook_server.utils import FiltroDuplicatas
+
+AGORA = datetime(2026, 9, 21, 12, 0, 0)
+
+
+def test_filtro_duplicatas_ignora_reenvio_na_janela():
+    filtro = FiltroDuplicatas(janela_minutos=10)
+    assert filtro.eh_duplicata("C6 Bank", "Titulo", "texto", agora=AGORA) is False
+    assert filtro.eh_duplicata("C6 Bank", "Titulo", "texto", agora=AGORA + timedelta(minutes=1)) is True
+
+
+def test_filtro_duplicatas_aceita_apos_janela():
+    filtro = FiltroDuplicatas(janela_minutos=10)
+    filtro.eh_duplicata("C6 Bank", "Titulo", "texto", agora=AGORA)
+    assert filtro.eh_duplicata("C6 Bank", "Titulo", "texto", agora=AGORA + timedelta(minutes=11)) is False
+
+
+def test_filtro_duplicatas_conteudo_diferente_nao_e_duplicata():
+    filtro = FiltroDuplicatas(janela_minutos=10)
+    filtro.eh_duplicata("C6 Bank", "Titulo", "texto A", agora=AGORA)
+    assert filtro.eh_duplicata("C6 Bank", "Titulo", "texto B", agora=AGORA) is False

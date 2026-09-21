@@ -9,6 +9,7 @@ logging.basicConfig(level=logging.INFO)
 
 ENV = os.environ.get("WEBHOOK_ENV", "prod")
 TOKEN = os.environ.get('WEBHOOK_TOKEN', 'token_teste')
+DEDUP_WINDOW_MINUTES = int(os.environ.get('DEDUP_WINDOW_MINUTES', '10'))
 CSV_FILE = f'data/{ENV}/raw/notificacoes.csv'
 FORMATTED_CSV = f'data/{ENV}/formated/notificacoes_formatadas.csv'
 
@@ -16,6 +17,7 @@ FORMATTED_CSV = f'data/{ENV}/formated/notificacoes_formatadas.csv'
 
 def create_app():
     app = Flask(__name__)
+    filtro = utils.FiltroDuplicatas(DEDUP_WINDOW_MINUTES)
 
     for path, header in (
         (CSV_FILE, ['timestamp', 'app', 'titulo', 'texto']),
@@ -41,6 +43,11 @@ def create_app():
             app_name = data['app']
             title = data['titulo']
             text = data['texto']
+
+            if filtro.eh_duplicata(app_name, title, text):
+                logging.info("evento=notificacao_duplicada_ignorada titulo=%r", title)
+                return jsonify({"status": "success", "message": "Notificação duplicada ignorada"}), 200
+
             timestamp = datetime.now().isoformat()
 
             utils.append_csv(CSV_FILE, {

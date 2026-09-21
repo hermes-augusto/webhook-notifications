@@ -1,6 +1,9 @@
 import csv
+import hashlib
 import os
 import re
+from collections import deque
+from datetime import datetime, timedelta
 
 # Textos reais que cada padrão deve casar (C6 Bank):
 #   "Pix recebido no valor de R$ 50,00, de João Silva, em 20/09/2026."
@@ -59,3 +62,29 @@ def parse_notification(titulo: str, texto: str):
                 "operacao": "TAG"
             }
     return None
+
+class FiltroDuplicatas:
+    """Ignora notificações idênticas recebidas dentro da janela (retries do MacroDroid).
+
+    Limitação: o payload não tem ID único, então o dedup é por conteúdo exato em
+    memória — reiniciar o container zera a janela e transações legítimas repetidas
+    dentro dela também são ignoradas (por isso a janela deve ser curta).
+    """
+
+    def __init__(self, janela_minutos: int = 10):
+        self.janela = timedelta(minutes=janela_minutos)
+        self._vistos = deque()
+
+    def _chave(self, app: str, titulo: str, texto: str) -> str:
+        return hashlib.sha1(f"{app}|{titulo}|{texto}".encode('utf-8')).hexdigest()
+
+    def eh_duplicata(self, app: str, titulo: str, texto: str, agora: datetime = None) -> bool:
+        agora = agora or datetime.now()
+        corte = agora - self.janela
+        while self._vistos and self._vistos[0][1] < corte:
+            self._vistos.popleft()
+        chave = self._chave(app, titulo, texto)
+        if any(k == chave for k, _ in self._vistos):
+            return True
+        self._vistos.append((chave, agora))
+        return False
