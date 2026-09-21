@@ -23,6 +23,10 @@ TEXTO_TAG_PEDAGIO = (
     "Você usou seu tag no dia 30/06/2025 as 08:10. Valor a debitar R$ 3,80. "
     "Pedágio SP280 180 OESTE OSASCO  SP."
 )
+TEXTO_CREDITO_MASCARADO = (
+    "Sua compra no cartão final 5346********5038 no valor de R$ 50,00, dia 07/01/2026 às 19:54, "
+    "em AUTO POSTO CENTRO      SAO PAULO     BRA, foi aprovada."
+)
 
 
 @pytest.mark.parametrize(
@@ -60,6 +64,16 @@ TEXTO_TAG_PEDAGIO = (
                 "data": "01/01/2026 10:00",
                 "valor": 1234.56,
                 "descricao": "LOJA TESTE SAO PAULO BRA",
+                "operacao": "CREDITO",
+            },
+        ),
+        (
+            "Compra no crédito aprovada",
+            TEXTO_CREDITO_MASCARADO,
+            {
+                "data": "07/01/2026 19:54",
+                "valor": 50.0,
+                "descricao": "AUTO POSTO CENTRO      SAO PAULO     BRA",
                 "operacao": "CREDITO",
             },
         ),

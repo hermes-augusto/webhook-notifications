@@ -25,7 +25,7 @@ def parse_notification(titulo: str, texto: str):
                 "operacao": "PIX",
             }
     elif titulo == "Compra no crédito aprovada":
-        padrao = r'Sua compra no cartão final \d+ no valor de R\$ ([\d,.]+), dia (\d{2}/\d{2}/\d{4}) às (\d{2}:\d{2}), em (.*), foi aprovada\.'
+        padrao = r'Sua compra no cartão final [\d*]+ no valor de R\$ ([\d,.]+), dia (\d{2}/\d{2}/\d{4}) às (\d{2}:\d{2}), em (.*), foi aprovada\.'
         m = re.search(padrao, texto)
         if m:
             valor = float(m.group(1).replace('.', '').replace(',', '.'))
