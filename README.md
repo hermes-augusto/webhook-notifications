@@ -52,9 +52,9 @@ O parsing das mensagens acontece em `webhook_server/utils.py` (`parse_notificati
 
 ## Idempotência e observabilidade
 
-- **Dedup em janela deslizante**: notificações idênticas (`app`+`titulo`+`texto`) recebidas dentro de `DEDUP_WINDOW_MINUTES` são ignoradas (retries do MacroDroid não viram linha duplicada). Sem ID único no payload, o dedup é por conteúdo exato em memória — reiniciar o container zera a janela e repetições legítimas dentro dela também são ignoradas (por isso a janela deve ser curta).
+- **Dedup em janela deslizante**: notificações idênticas (`app`+`titulo`+`texto`) recebidas dentro de `DEDUP_WINDOW_MINUTES` são ignoradas (retries do MacroDroid não viram linha duplicada). Sem ID único no payload, o dedup é por conteúdo exato em memória, reiniciar o container zera a janela e repetições legítimas dentro dela também são ignoradas (por isso a janela deve ser curta).
 - **Logs estruturados** no formato `evento=chave=valor` — parseáveis por grep/Loki/n8n.
-- **`GET /stats`** — contadores, `taxa_reconhecimento_pct`, `ultima_recebida`, `dias_sem_recebimento` e os booleans `alerta_drift` / `alerta_silencio`. Serve de alerta barato de drift: se o C6 mudar o formato das notificações, a taxa despenca e fica visível logo. Contadores zeram a cada restart; a taxa só é calculada com volume mínimo (`STATS_MIN_RECEBIDAS`) pra não disparar falso positivo depois de restart.
+- **`GET /stats`** — contadores, `taxa_reconhecimento_pct`, `ultima_recebida`, `dias_sem_recebimento` e os booleans `alerta_drift` / `alerta_silencio`. Serve de alerta de drift: se o C6 mudar o formato das notificações, a taxa despenca e fica visível logo. Contadores zeram a cada restart; a taxa só é calculada com volume mínimo (`STATS_MIN_RECEBIDAS`) pra não disparar falso positivo depois de restart.
 
 ## Monitoramento (Uptime Kuma)
 
@@ -66,7 +66,7 @@ Três monitores cobrem a cadeia inteira:
 | Drift de formato | HTTP(s) - JSON Query em `/stats` | JSONPath `$.alerta_drift`, operador `==`, valor `false` |
 | Silêncio de notificações | HTTP(s) - JSON Query em `/stats` | JSONPath `$.alerta_silencio`, operador `==`, valor `false` |
 
-O de **silêncio** pega o caso que up/down não vê: celular desligado, MacroDroid parado, C6 mudando o app — se passar de `STATS_SILENCIO_DIAS` (padrão 7) sem notificação nenhuma, alerta. Os limiares vivem no código (env vars), não na UI do Kuma — versionados e testados.
+O de **silêncio** pega o caso que up/down não vê: celular desligado, MacroDroid parado, C6 mudando o app — se passar de `STATS_SILENCIO_DIAS` (padrão 7) sem notificação nenhuma, alerta. Os limiares vivem no código (env vars), não na UI do Kuma.
 
 ## Rodando com Docker
 
