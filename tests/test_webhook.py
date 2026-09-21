@@ -121,3 +121,23 @@ def test_webhook_notificacoes_diferentes_gravam_normalmente(client):
         )
         assert resposta.status_code == 200
     assert len(ler_linhas(ws.CSV_FILE)) == 3
+
+
+def test_stats_conta_recebidas_parseadas_e_duplicatas(client):
+    assert client.get("/stats").get_json()["recebidas"] == 0
+
+    payload = {"app": "C6 Bank", "titulo": "Você recebeu um Pix", "texto": TEXTO_PIX}
+    client.post("/webhook", headers=auth(), json=payload)
+    client.post("/webhook", headers=auth(), json=payload)
+    client.post(
+        "/webhook",
+        headers=auth(),
+        json={"app": "C6 Bank", "titulo": "Agendamento processado", "texto": "texto novo do banco"},
+    )
+
+    stats = client.get("/stats").get_json()
+    assert stats["recebidas"] == 3
+    assert stats["parseadas"] == 1
+    assert stats["nao_reconhecidas"] == 1
+    assert stats["duplicatas_ignoradas"] == 1
+    assert stats["taxa_reconhecimento"] == "33.3%"
