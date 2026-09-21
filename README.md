@@ -48,7 +48,13 @@ Saídas:
 - `data/{env}/raw/notificacoes.csv` — todas as notificações, com `timestamp, app, titulo, texto`.
 - `data/{env}/formated/notificacoes_formatadas.csv` — só mensagens reconhecidas, com `data, valor, descricao, tipo_operacao` (operacões suportadas: `PIX`, `CREDITO`, `TAG`).
 
-O parsing das mensagens acontece em `webhook_server/utils.py:15` — se o C6 mudar o texto das notificações (como ocorreu na atualização do MacroDroid em 07/07), os padrões de regex precisam ser ajustados lá.
+O parsing das mensagens acontece em `webhook_server/utils.py` (`parse_notification`, padrões `PADRAO_PIX`/`PADRAO_CREDITO`/`PADRAO_TAG`) — se o C6 mudar o texto das notificações, os regex precisam ser ajustados lá, com caso de teste novo usando o texto real.
+
+## Idempotência e observabilidade
+
+- **Dedup em janela deslizante**: notificações idênticas (`app`+`titulo`+`texto`) recebidas dentro de `DEDUP_WINDOW_MINUTES` são ignoradas (retries do MacroDroid não viram linha duplicada). Sem ID único no payload, o dedup é por conteúdo exato em memória — reiniciar o container zera a janela e repetições legítimas dentro dela também são ignoradas (por isso a janela deve ser curta).
+- **Logs estruturados** no formato `evento=chave=valor` — parseáveis por grep/Loki/n8n.
+- **`GET /stats`** — contadores (`recebidas`, `parseadas`, `nao_reconhecidas`, `duplicatas_ignoradas`) e `taxa_reconhecimento`. Serve de alerta barato de drift: se o C6 mudar o formato das notificações, a taxa despenca e fica visível logo. Contadores zeram a cada restart.
 
 ## Rodando com Docker
 
@@ -78,14 +84,16 @@ Cobrem o parsing dos formatos de notificação (PIX, crédito, TAG) com textos r
 |---|---|---|
 | `WEBHOOK_ENV` | `prod` | Define se grava em `data/prod` ou `data/dev` |
 | `WEBHOOK_TOKEN` | `token_teste` | Token do header `Authorization` (defina no `.env`) |
+| `DEDUP_WINDOW_MINUTES` | `10` | Janela do dedup de notificações idênticas (minutos) |
 
 ## Rotas
 
-- `POST /webhook` — recebe a notificação (exige `Bearer` token).
+- `POST /webhook` — recebe a notificação (exige `Bearer` token); ignora duplicatas na janela.
+- `GET /stats` — contadores e taxa de reconhecimento (zeram a cada restart).
 - `GET /ping` — health check, retorna `{"message": "Pong"}`.
 
 ## Observações
 
 - O token e outros segredos ficam no `.env` (não versionado).
-- Mensagens com título não reconhecido são salvas só no CSV bruto, com log `"Mensagem não reconhecida"`.
+- Mensagens com título não reconhecido são salvas só no CSV bruto, com log `evento=notificacao_nao_reconhecida`.
 - O n8n lê os CSVs de `data/` e faz o upload para o Drive — o upload não é responsabilidade deste serviço.

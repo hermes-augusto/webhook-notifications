@@ -53,7 +53,8 @@ docker compose up -d --build webhook-dev    # dev na porta 5001
 
 ## Rotas e contrato
 
-- `POST /webhook` — recebe JSON `{app, titulo, texto}` com header `Authorization: Bearer <WEBHOOK_TOKEN>`; retorna 200 e grava no CSV bruto, e no formatado se o título for reconhecido. 401 sem token/errado; 400 com campo ausente; 500 com log de exceção.
+- `POST /webhook` — recebe JSON `{app, titulo, texto}` com header `Authorization: Bearer <WEBHOOK_TOKEN>`; retorna 200 e grava no CSV bruto, e no formatado se o título for reconhecido. Duplicatas idênticas dentro de `DEDUP_WINDOW_MINUTES` são ignoradas com 200. 401 sem token/errado; 400 com campo ausente; 500 com log de exceção.
+- `GET /stats` — contadores em memória (`recebidas`, `parseadas`, `nao_reconhecidas`, `duplicatas_ignoradas`, `taxa_reconhecimento`); zeram a cada restart. Alerta barato de drift de formato.
 - `GET /ping` — health check, retorna `{"status": "success", "message": "Pong"}`.
 
 Saídas (por ambiente, definido por `WEBHOOK_ENV`):
@@ -67,14 +68,15 @@ Saídas (por ambiente, definido por `WEBHOOK_ENV`):
 |---|---|---|
 | `WEBHOOK_ENV` | `prod` | Define se grava em `data/prod` ou `data/dev` |
 | `WEBHOOK_TOKEN` | `token_teste` | Token do header `Authorization` (valor real no `.env`) |
+| `DEDUP_WINDOW_MINUTES` | `10` | Janela do dedup de notificações idênticas (minutos) |
 
 O `dockerfile` fixa `WEBHOOK_ENV=prod` e expõe a porta 5000. O `docker-compose.yml` monta `./data/{env}` como volume, então os CSVs ficam no host e sobrevivem a rebuilds.
 
 ## Convenções de código
 
-- Logs em português via `logging` (ex.: `"Salvando RAW"`, `"Mensagem não reconhecida"`). Em handlers de exceção usar `logging.exception("mensagem: %s", e)` — nunca passar `str(e)` como segundo argumento posicional, pois quebra a formatação.
+- Logs em português via `logging`, no formato estruturado `evento=chave=valor` (ex.: `evento=notificacao_gravada tabela=raw titulo=%r`). Em handlers de exceção usar `logging.exception("evento=erro detalhe=%s", e)` — nunca passar `str(e)` como segundo argumento posicional, pois quebra a formatação.
 - Ambientes separados por `WEBHOOK_ENV` (`prod` → `data/prod`, porta 5000; `dev` → `data/dev`, porta 5001). Toda mudança deve funcionar nos dois.
-- Novos formatos de notificação: seguir o padrão dos `elif` existentes em `parse_notification` (referência de bom padrão: os casos `PIX`/`CREDITO`/`TAG`), retornando dict com chaves `data, valor, descricao, operacao` nessa ordem.
+- Novos formatos de notificação: seguir o padrão dos `elif` existentes em `parse_notification` com padrão nomeado em nível de módulo (`PADRAO_*` com exemplo de texto real em comentário), retornando dict com chaves `data, valor, descricao, operacao` nessa ordem.
 - Não adicionar dependências sem necessidade real; o projeto usa apenas Flask (pytest em dev, fixado em `<9` porque o 9 exige Python ≥3.10 e o projeto aceita 3.9).
 
 ## Testes
