@@ -54,7 +54,7 @@ docker compose up -d --build webhook-dev    # dev na porta 5001
 ## Rotas e contrato
 
 - `POST /webhook` — recebe JSON `{app, titulo, texto}` com header `Authorization: Bearer <WEBHOOK_TOKEN>`; retorna 200 e grava no CSV bruto, e no formatado se o título for reconhecido. Duplicatas idênticas dentro de `DEDUP_WINDOW_MINUTES` são ignoradas com 200. 401 sem token/errado; 400 com campo ausente; 500 com log de exceção.
-- `GET /stats` — contadores em memória (`recebidas`, `parseadas`, `nao_reconhecidas`, `duplicatas_ignoradas`, `taxa_reconhecimento`); zeram a cada restart. Alerta barato de drift de formato.
+- `GET /stats` — contadores, taxa de reconhecimento (só com volume mínimo), `ultima_recebida`, `dias_sem_recebimento` e booleans `alerta_drift`/`alerta_silencio` (limiares via env `STATS_*`). Monitores Uptime Kuma: `/ping` (up/down) + JSON Query `$.alerta_drift`/`$.alerta_silencio` `== false`. Zeram a cada restart.
 - `GET /ping` — health check, retorna `{"status": "success", "message": "Pong"}`.
 
 Saídas (por ambiente, definido por `WEBHOOK_ENV`):
@@ -69,6 +69,9 @@ Saídas (por ambiente, definido por `WEBHOOK_ENV`):
 | `WEBHOOK_ENV` | `prod` | Define se grava em `data/prod` ou `data/dev` |
 | `WEBHOOK_TOKEN` | `token_teste` | Token do header `Authorization` (valor real no `.env`) |
 | `DEDUP_WINDOW_MINUTES` | `10` | Janela do dedup de notificações idênticas (minutos) |
+| `STATS_MIN_RECEBIDAS` | `10` | Volume mínimo pra taxa de reconhecimento valer |
+| `STATS_TAXA_MINIMA_PCT` | `50` | Abaixo disso (com volume mínimo), `alerta_drift` liga |
+| `STATS_SILENCIO_DIAS` | `7` | Acima disso sem notificações, `alerta_silencio` liga |
 
 O `dockerfile` fixa `WEBHOOK_ENV=prod` e expõe a porta 5000. O `docker-compose.yml` monta `./data/{env}` como volume, então os CSVs ficam no host e sobrevivem a rebuilds.
 

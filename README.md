@@ -54,7 +54,19 @@ O parsing das mensagens acontece em `webhook_server/utils.py` (`parse_notificati
 
 - **Dedup em janela deslizante**: notificações idênticas (`app`+`titulo`+`texto`) recebidas dentro de `DEDUP_WINDOW_MINUTES` são ignoradas (retries do MacroDroid não viram linha duplicada). Sem ID único no payload, o dedup é por conteúdo exato em memória — reiniciar o container zera a janela e repetições legítimas dentro dela também são ignoradas (por isso a janela deve ser curta).
 - **Logs estruturados** no formato `evento=chave=valor` — parseáveis por grep/Loki/n8n.
-- **`GET /stats`** — contadores (`recebidas`, `parseadas`, `nao_reconhecidas`, `duplicatas_ignoradas`) e `taxa_reconhecimento`. Serve de alerta barato de drift: se o C6 mudar o formato das notificações, a taxa despenca e fica visível logo. Contadores zeram a cada restart.
+- **`GET /stats`** — contadores, `taxa_reconhecimento_pct`, `ultima_recebida`, `dias_sem_recebimento` e os booleans `alerta_drift` / `alerta_silencio`. Serve de alerta barato de drift: se o C6 mudar o formato das notificações, a taxa despenca e fica visível logo. Contadores zeram a cada restart; a taxa só é calculada com volume mínimo (`STATS_MIN_RECEBIDAS`) pra não disparar falso positivo depois de restart.
+
+## Monitoramento (Uptime Kuma)
+
+Três monitores cobrem a cadeia inteira:
+
+| Monitor | Tipo no Kuma | Configuração |
+|---|---|---|
+| Serviço no ar | HTTP(s) em `/ping` | status esperado 200 |
+| Drift de formato | HTTP(s) - JSON Query em `/stats` | JSONPath `$.alerta_drift`, operador `==`, valor `false` |
+| Silêncio de notificações | HTTP(s) - JSON Query em `/stats` | JSONPath `$.alerta_silencio`, operador `==`, valor `false` |
+
+O de **silêncio** pega o caso que up/down não vê: celular desligado, MacroDroid parado, C6 mudando o app — se passar de `STATS_SILENCIO_DIAS` (padrão 7) sem notificação nenhuma, alerta. Os limiares vivem no código (env vars), não na UI do Kuma — versionados e testados.
 
 ## Rodando com Docker
 
@@ -85,11 +97,14 @@ Cobrem o parsing dos formatos de notificação (PIX, crédito, TAG) com textos r
 | `WEBHOOK_ENV` | `prod` | Define se grava em `data/prod` ou `data/dev` |
 | `WEBHOOK_TOKEN` | `token_teste` | Token do header `Authorization` (defina no `.env`) |
 | `DEDUP_WINDOW_MINUTES` | `10` | Janela do dedup de notificações idênticas (minutos) |
+| `STATS_MIN_RECEBIDAS` | `10` | Volume mínimo pra taxa de reconhecimento valer |
+| `STATS_TAXA_MINIMA_PCT` | `50` | Abaixo disso (com volume mínimo), `alerta_drift` liga |
+| `STATS_SILENCIO_DIAS` | `7` | Acima disso sem notificações, `alerta_silencio` liga |
 
 ## Rotas
 
 - `POST /webhook` — recebe a notificação (exige `Bearer` token); ignora duplicatas na janela.
-- `GET /stats` — contadores e taxa de reconhecimento (zeram a cada restart).
+- `GET /stats` — contadores, taxa de reconhecimento (só com volume mínimo), `ultima_recebida`, `dias_sem_recebimento` e booleans `alerta_drift`/`alerta_silencio` prontos pra monitoramento externo (Uptime Kuma: JSON Query `== false` dispara alerta quando vira `true`). Zeram a cada restart.
 - `GET /ping` — health check, retorna `{"message": "Pong"}`.
 
 ## Observações
