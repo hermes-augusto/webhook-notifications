@@ -38,7 +38,7 @@ def parse_notification(titulo: str, texto: str):
                 
             }
     elif titulo == "Débito C6 Tag":
-        padrao = r'Você usou seu tag no dia (\d{2}/\d{2}/\d{4}) as (\d{2}:\d{2}). Valor a debitar R\$ ([\d,.]+)\. (.+) \.'
+        padrao = r'Você usou seu tag no dia (\d{2}/\d{2}/\d{4}) as (\d{2}:\d{2}). Valor a debitar R\$ ([\d,.]+)\. (.+?) ?\.'
         m = re.search(padrao, texto)
         if m:
             valor = float(m.group(3).replace('.', '').replace(',', '.'))

@@ -19,6 +19,10 @@ TEXTO_TAG = (
     "Você usou seu tag no dia 16/06/2025 as 18:55. Valor a debitar R$ 36,00. "
     "Estacionamento RUA TREZE DE MAIO 19470 SAO PAULO SP ."
 )
+TEXTO_TAG_PEDAGIO = (
+    "Você usou seu tag no dia 30/06/2025 as 08:10. Valor a debitar R$ 3,80. "
+    "Pedágio SP280 180 OESTE OSASCO  SP."
+)
 
 
 @pytest.mark.parametrize(
@@ -66,6 +70,16 @@ TEXTO_TAG = (
                 "data": "16/06/2025 18:55",
                 "valor": 36.0,
                 "descricao": "Estacionamento RUA TREZE DE MAIO 19470 SAO PAULO SP",
+                "operacao": "TAG",
+            },
+        ),
+        (
+            "Débito C6 Tag",
+            TEXTO_TAG_PEDAGIO,
+            {
+                "data": "30/06/2025 08:10",
+                "valor": 3.8,
+                "descricao": "Pedágio SP280 180 OESTE OSASCO  SP",
                 "operacao": "TAG",
             },
         ),
