@@ -140,4 +140,43 @@ def test_stats_conta_recebidas_parseadas_e_duplicatas(client):
     assert stats["parseadas"] == 1
     assert stats["nao_reconhecidas"] == 1
     assert stats["duplicatas_ignoradas"] == 1
-    assert stats["taxa_reconhecimento"] == "33.3%"
+    assert stats["dias_sem_recebimento"] == 0.0
+    assert stats["alerta_drift"] is False
+    assert stats["alerta_silencio"] is False
+    # menos de STATS_MIN_RECEBIDAS recebidas: taxa ainda não é significativa
+    assert stats["taxa_reconhecimento_pct"] is None
+    assert "insuficiente" in stats["taxa_reconhecimento"]
+
+
+def test_stats_alerta_drift_quando_taxa_abaixo_do_minimo(client):
+    for i in range(10):
+        client.post(
+            "/webhook",
+            headers=auth(),
+            json={"app": "C6 Bank", "titulo": f"título novo {i}", "texto": f"texto que não casou {i}"},
+        )
+    stats = client.get("/stats").get_json()
+    assert stats["recebidas"] == 10
+    assert stats["taxa_reconhecimento_pct"] == 0.0
+    assert stats["alerta_drift"] is True
+
+
+def test_stats_alerta_silencio_apos_janela_sem_recebimento(client, monkeypatch):
+    client.post(
+        "/webhook",
+        headers=auth(),
+        json={"app": "C6 Bank", "titulo": "Você recebeu um Pix", "texto": TEXTO_PIX},
+    )
+    assert client.get("/stats").get_json()["alerta_silencio"] is False
+
+    from datetime import datetime as datetime_real, timedelta
+
+    class DataFake(datetime_real):
+        @classmethod
+        def now(cls):
+            return datetime_real.now() + timedelta(days=8)
+
+    monkeypatch.setattr(ws, "datetime", DataFake)
+    stats = client.get("/stats").get_json()
+    assert stats["alerta_silencio"] is True
+    assert stats["dias_sem_recebimento"] > 7

@@ -10,6 +10,9 @@ logging.basicConfig(level=logging.INFO)
 ENV = os.environ.get("WEBHOOK_ENV", "prod")
 TOKEN = os.environ.get('WEBHOOK_TOKEN', 'token_teste')
 DEDUP_WINDOW_MINUTES = int(os.environ.get('DEDUP_WINDOW_MINUTES', '10'))
+STATS_MIN_RECEBIDAS = int(os.environ.get('STATS_MIN_RECEBIDAS', '10'))
+STATS_TAXA_MINIMA_PCT = float(os.environ.get('STATS_TAXA_MINIMA_PCT', '50'))
+STATS_SILENCIO_DIAS = float(os.environ.get('STATS_SILENCIO_DIAS', '7'))
 CSV_FILE = f'data/{ENV}/raw/notificacoes.csv'
 FORMATTED_CSV = f'data/{ENV}/formated/notificacoes_formatadas.csv'
 
@@ -19,11 +22,12 @@ def create_app():
     app = Flask(__name__)
     filtro = utils.FiltroDuplicatas(DEDUP_WINDOW_MINUTES)
     contadores = {
-        "inicio_contagem": datetime.now().isoformat(),
+        "inicio": datetime.now(),
         "recebidas": 0,
         "parseadas": 0,
         "nao_reconhecidas": 0,
         "duplicatas_ignoradas": 0,
+        "ultima_recebida": None,
     }
 
     for path, header in (
@@ -40,10 +44,24 @@ def create_app():
 
     @app.route('/stats', methods=['GET'])
     def stats():
-        taxa = (contadores['parseadas'] / contadores['recebidas'] * 100) if contadores['recebidas'] else 0.0
+        agora = datetime.now()
+        ultima = contadores['ultima_recebida'] or contadores['inicio']
+        dias_sem = round((agora - ultima).total_seconds() / 86400, 2)
+        recebidas = contadores['recebidas']
+        taxa = (contadores['parseadas'] / recebidas * 100) if recebidas else 0.0
+        armado = recebidas >= STATS_MIN_RECEBIDAS
         return jsonify({
-            **contadores,
-            "taxa_reconhecimento": f"{taxa:.1f}%",
+            "inicio_contagem": contadores['inicio'].isoformat(),
+            "recebidas": recebidas,
+            "parseadas": contadores['parseadas'],
+            "nao_reconhecidas": contadores['nao_reconhecidas'],
+            "duplicatas_ignoradas": contadores['duplicatas_ignoradas'],
+            "ultima_recebida": ultima.isoformat(),
+            "dias_sem_recebimento": dias_sem,
+            "taxa_reconhecimento": f"{taxa:.1f}%" if armado else f"insuficiente (min. {STATS_MIN_RECEBIDAS} recebidas)",
+            "taxa_reconhecimento_pct": round(taxa, 1) if armado else None,
+            "alerta_drift": armado and taxa < STATS_TAXA_MINIMA_PCT,
+            "alerta_silencio": dias_sem > STATS_SILENCIO_DIAS,
             "aviso": "contadores zeram a cada restart do container",
         }), 200
 
@@ -60,6 +78,7 @@ def create_app():
             title = data['titulo']
             text = data['texto']
             contadores['recebidas'] += 1
+            contadores['ultima_recebida'] = datetime.now()
 
             if filtro.eh_duplicata(app_name, title, text):
                 contadores['duplicatas_ignoradas'] += 1
