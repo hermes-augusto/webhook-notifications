@@ -31,9 +31,10 @@ def create_app():
 
     @app.route('/webhook', methods=['POST'])
     def webhook():
-        logging.info(f"Requisição recebida de {request.remote_addr}")
+        logging.info("evento=requisicao_recebida remote_addr=%s", request.remote_addr)
         auth = request.headers.get('Authorization')
         if not auth or auth != f'Bearer {TOKEN}':
+            logging.info("evento=autenticacao_falhou remote_addr=%s", request.remote_addr)
             return jsonify({'status': 'error', 'message': 'Não autorizado'}), 401
         try:
             data = request.get_json()
@@ -49,19 +50,19 @@ def create_app():
                 "texto": text
             })
 
-            logging.info(f"Salvando RAW : {title}")
+            logging.info("evento=notificacao_gravada tabela=raw titulo=%r", title)
             format_msg = utils.parse_notification(title, text)
             if format_msg:
-                logging.info(f"Salvando Formatada: {format_msg['operacao']}")
+                logging.info("evento=notificacao_gravada tabela=formatada operacao=%s", format_msg['operacao'])
                 utils.append_csv(FORMATTED_CSV, format_msg)
             else:
-                logging.info("Mensagem não reconhecida")
+                logging.info("evento=notificacao_nao_reconhecida titulo=%r app=%r", title, app_name)
 
             return jsonify({"status": "success", "message": "Dados salvos"}), 200
         except KeyError as e:
             return jsonify({"status": "error", "message": f"Campo obrigatório ausente: {e}"}), 400
         except Exception as e:
-            logging.exception("Erro ao processar webhook: %s", e)
+            logging.exception("evento=erro_webhook detalhe=%s", e)
             return jsonify({"status": "error", "message": str(e)}), 500
     
     return app
