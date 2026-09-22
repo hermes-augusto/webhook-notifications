@@ -10,9 +10,16 @@ python = ">=3.9,<4.0"
 flask = "^3.1.1"
 
 
+[tool.poetry.group.dev.dependencies]
+pytest = "<9"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-start-webhook = "webhook_server:main"
+start-webhook = "webhook_server.webhook_server:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
